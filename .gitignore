@@ -1,0 +1,15 @@
+# Build output
+/build*/
+/out/
+/dist/
+*.exe
+*.obj
+*.o
+*.pdb
+*.ilk
+*.log
+# IDE
+.vs/
+.vscode/
+.idea/
+CMakeUserPresets.json
