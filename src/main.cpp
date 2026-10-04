@@ -51,7 +51,8 @@ const NamedColor kColors[] = {
     {L"Зелёный", RGB(0, 255, 127)}, {L"Белый", RGB(255, 255, 255)}, {L"Жёлтый", RGB(255, 221, 0)},
     {L"Голубой", RGB(0, 200, 255)}, {L"Оранжевый", RGB(255, 140, 0)}, {L"Красный", RGB(255, 70, 70)},
 };
-const int kThresholds[] = {512, 1024, 2048, 4096};
+const int kThresholds[] = {512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072};  // MB, up to 128 GB
+constexpr int kThresholdCount = sizeof(kThresholds) / sizeof(*kThresholds);
 
 HINSTANCE g_inst;
 HWND g_wnd;
@@ -216,8 +217,9 @@ void ShowMenu() {
     AppendCheck(mem, IDM_AUTOCLEAN, L"Автоочистка", g_cfg.autoClean);
     HMENU sb = CreatePopupMenu();
     HMENU fr = CreatePopupMenu();
-    for (int i = 0; i < 4; ++i) {
-        swprintf_s(b, L"%d МБ", kThresholds[i]);
+    for (int i = 0; i < kThresholdCount; ++i) {
+        if (kThresholds[i] >= 1024) swprintf_s(b, L"%d ГБ", kThresholds[i] / 1024);
+        else swprintf_s(b, L"%d МБ", kThresholds[i]);
         AppendRadio(sb, IDM_STANDBY + i, b, g_cfg.standbyMB == kThresholds[i]);
         AppendRadio(fr, IDM_FREE + i, b, g_cfg.freeMB == kThresholds[i]);
     }
@@ -256,8 +258,8 @@ void OnCommand(int id) {
     else if (id == IDM_CLEAN_NOW) CleanNow(false);
     else if (id == IDM_CLEAN_FULL) CleanNow(true);
     else if (id == IDM_AUTOCLEAN) { g_cfg.autoClean = !g_cfg.autoClean; Commit(false); }
-    else if (in(IDM_STANDBY, 4)) { g_cfg.standbyMB = kThresholds[id - IDM_STANDBY]; Commit(false); }
-    else if (in(IDM_FREE, 4)) { g_cfg.freeMB = kThresholds[id - IDM_FREE]; Commit(false); }
+    else if (in(IDM_STANDBY, kThresholdCount)) { g_cfg.standbyMB = kThresholds[id - IDM_STANDBY]; Commit(false); }
+    else if (in(IDM_FREE, kThresholdCount)) { g_cfg.freeMB = kThresholds[id - IDM_FREE]; Commit(false); }
     else if (id == IDM_AUTOSTART) {
         bool want = !AutostartEnabled();
         if (!AutostartSet(want)) Balloon(L"game-fps", L"Не удалось изменить автозапуск.");

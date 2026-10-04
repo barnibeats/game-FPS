@@ -5,6 +5,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning: [S
 
 ## [Unreleased]
 
+### Changed
+- Standby cleaner thresholds can be set from 512 MB up to 128 GB (menu and `settings.ini`).
+
 ## [0.1.0] - 2026-10-04
 
 ### Added

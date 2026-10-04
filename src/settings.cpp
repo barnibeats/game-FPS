@@ -45,8 +45,8 @@ void SettingsLoad(Settings& s) {
     s.showLow = GetInt(L"hud", L"show_1pct_low", 0) != 0;
     s.showRam = GetInt(L"hud", L"show_ram", 0) != 0;
     s.autoClean = GetInt(L"memory", L"auto_clean", 0) != 0;
-    s.standbyMB = std::clamp(GetInt(L"memory", L"standby_mb", s.standbyMB), 128, 65536);
-    s.freeMB = std::clamp(GetInt(L"memory", L"free_mb", s.freeMB), 128, 65536);
+    s.standbyMB = std::clamp(GetInt(L"memory", L"standby_mb", s.standbyMB), 128, 131072);
+    s.freeMB = std::clamp(GetInt(L"memory", L"free_mb", s.freeMB), 128, 131072);
 }
 
 void SettingsSave(const Settings& s) {
