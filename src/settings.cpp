@@ -34,7 +34,12 @@ const wchar_t* SettingsPath() {
 void SettingsLoad(Settings& s) {
     InitPath();
     s.visible = GetInt(L"hud", L"visible", 1) != 0;
-    s.corner = std::clamp(GetInt(L"hud", L"corner", s.corner), 0, 3);
+    s.corner = std::clamp(GetInt(L"hud", L"corner", s.corner), 0, 4);
+    s.posX = std::clamp(GetInt(L"hud", L"pos_x", s.posX), -20000, 20000);
+    s.posY = std::clamp(GetInt(L"hud", L"pos_y", s.posY), -20000, 20000);
+    s.layout = std::clamp(GetInt(L"hud", L"layout", s.layout), 0, 1);
+    s.onlyInGames = GetInt(L"hud", L"only_in_games", 0) != 0;
+    s.colorByFps = GetInt(L"hud", L"color_by_fps", 0) != 0;
     s.monitor = std::clamp(GetInt(L"hud", L"monitor", s.monitor), 0, 1);
     s.margin = std::clamp(GetInt(L"hud", L"margin", s.margin), 0, 200);
     s.fontSize = std::clamp(GetInt(L"hud", L"font_size", s.fontSize), 10, 96);
@@ -53,6 +58,11 @@ void SettingsSave(const Settings& s) {
     InitPath();
     PutInt(L"hud", L"visible", s.visible);
     PutInt(L"hud", L"corner", s.corner);
+    PutInt(L"hud", L"pos_x", s.posX);
+    PutInt(L"hud", L"pos_y", s.posY);
+    PutInt(L"hud", L"layout", s.layout);
+    PutInt(L"hud", L"only_in_games", s.onlyInGames);
+    PutInt(L"hud", L"color_by_fps", s.colorByFps);
     PutInt(L"hud", L"monitor", s.monitor);
     PutInt(L"hud", L"margin", s.margin);
     PutInt(L"hud", L"font_size", s.fontSize);

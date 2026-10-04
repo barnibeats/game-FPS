@@ -1,11 +1,16 @@
 #pragma once
 #include <windows.h>
 
-enum Corner { CornerTopLeft = 0, CornerTopRight, CornerBottomLeft, CornerBottomRight };
+enum Corner { CornerTopLeft = 0, CornerTopRight, CornerBottomLeft, CornerBottomRight, CornerCustom };
+enum Layout { LayoutColumn = 0, LayoutRow };
 
 struct Settings {
     bool visible = true;
     int corner = CornerTopRight;
+    int posX = 16, posY = 16; // used when corner == CornerCustom (screen pixels)
+    int layout = LayoutColumn;
+    bool onlyInGames = false; // hide the HUD while the active window is not presenting frames
+    bool colorByFps = false;  // green / yellow / red depending on FPS
     int monitor = 0;          // 0 = primary, 1 = monitor of the active window
     int margin = 16;          // px at 96 DPI
     int fontSize = 20;        // px at 96 DPI

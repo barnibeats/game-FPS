@@ -19,13 +19,15 @@ Real frame rate of any game (D3D9/10/11/12, OpenGL, Vulkan) and of the desktop, 
 
 ## Features
 
-- HUD in any corner, on the primary monitor or the monitor of the active window.
+- HUD in any corner, on the primary monitor or the monitor of the active window, or **free placement**: drag it with the mouse (`Ctrl+Alt+G` to start/finish moving).
+- Layout: stacked in a column or **in a row**.
+- Optional FPS colour by level (green / yellow / red) and *show only in games* (hidden on the idle desktop).
 - Optional frame time, 1% low FPS and RAM usage lines.
 - Size, colour, opacity, update interval (1 s / 2 s).
 - Lives in the system tray, left click toggles the HUD, right click opens the menu.
 - Autostart with Windows (Task Scheduler logon task, no UAC prompt at boot).
 - **Memory cleaner** (Intelligent Standby List Cleaner style): purge the standby list manually or automatically when `standby >= N MB` and `free < M MB`.
-- Hotkeys: `Ctrl+Alt+F` toggle HUD, `Ctrl+Alt+M` purge standby list.
+- Hotkeys: `Ctrl+Alt+F` toggle HUD, `Ctrl+Alt+G` move HUD, `Ctrl+Alt+M` purge standby list.
 
 ## Install and update
 

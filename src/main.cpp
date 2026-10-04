@@ -18,12 +18,12 @@ constexpr wchar_t kRepoUrl[] = L"https://github.com/barnibeats/game-FPS";
 constexpr wchar_t kReleasesUrl[] = L"https://github.com/barnibeats/game-FPS/releases/latest";
 constexpr UINT WM_TRAY = WM_APP + 1;
 constexpr UINT_PTR TIMER_HUD = 1, TIMER_CLEAN = 2, TIMER_TRIM = 3;
-constexpr int HOTKEY_TOGGLE = 1, HOTKEY_CLEAN = 2;
+constexpr int HOTKEY_TOGGLE = 1, HOTKEY_CLEAN = 2, HOTKEY_EDIT = 3;
 constexpr int IDI_APP = 101;
 
 enum Cmd {
     IDM_TOGGLE = 100,
-    IDM_CORNER = 110,    // +0..3
+    IDM_CORNER = 110,    // +0..3 corners, +4 custom
     IDM_MONITOR = 120,   // +0..1
     IDM_FONT = 130,      // +index
     IDM_OPACITY = 150,   // +index
@@ -32,6 +32,10 @@ enum Cmd {
     IDM_FRAMETIME = 200,
     IDM_LOW = 201,
     IDM_RAM = 202,
+    IDM_ONLYGAMES = 203,
+    IDM_COLORFPS = 204,
+    IDM_EDIT = 205,
+    IDM_LAYOUT = 270,    // +0..1
     IDM_CLEAN_NOW = 210,
     IDM_CLEAN_FULL = 211,
     IDM_AUTOCLEAN = 212,
@@ -60,6 +64,7 @@ Settings g_cfg;
 NOTIFYICONDATAW g_nid;
 UINT g_taskbarCreated;
 bool g_etwFailed;
+bool g_editing;  // HUD is draggable (free placement)
 
 void Balloon(const wchar_t* title, const wchar_t* text) {
     NOTIFYICONDATAW n = g_nid;
@@ -126,9 +131,47 @@ void Commit(bool reapplyHud = true) {
     ApplyRuntimeState();
 }
 
+void StopEdit() {
+    if (!g_editing) return;
+    int x, y;
+    if (HudGetPos(&x, &y)) {
+        g_cfg.posX = x;
+        g_cfg.posY = y;
+    }
+    g_editing = false;
+    HudSetEdit(false);
+}
+
 void ToggleHud() {
+    StopEdit();
     g_cfg.visible = !g_cfg.visible;
-    Commit(false);
+    Commit();
+}
+
+// Free placement: drag the HUD with the mouse, switch edit mode off to lock the position.
+void SetEdit(bool on) {
+    if (!on) {
+        StopEdit();
+        Commit();
+        return;
+    }
+    if (g_editing) return;
+    if (!g_cfg.visible) {
+        g_cfg.visible = true;
+        Commit();
+    }
+    if (g_cfg.corner != CornerCustom) {
+        int x, y;
+        if (HudGetPos(&x, &y)) {
+            g_cfg.posX = x;
+            g_cfg.posY = y;
+        }
+        g_cfg.corner = CornerCustom;
+        Commit();
+    }
+    g_editing = true;
+    HudSetEdit(true);
+    Balloon(L"Перемещение HUD", L"Перетащите HUD мышью. Чтобы зафиксировать: Ctrl+Alt+G или меню в трее.");
 }
 
 void CleanNow(bool full) {
@@ -171,6 +214,8 @@ void ShowMenu() {
     HMENU pos = CreatePopupMenu();
     const wchar_t* corners[] = {L"Левый верхний", L"Правый верхний", L"Левый нижний", L"Правый нижний"};
     for (int i = 0; i < 4; ++i) AppendRadio(pos, IDM_CORNER + i, corners[i], g_cfg.corner == i);
+    AppendRadio(pos, IDM_CORNER + 4, L"Своё положение", g_cfg.corner == CornerCustom);
+    AppendCheck(pos, IDM_EDIT, L"Переместить HUD мышью	Ctrl+Alt+G", g_editing);
     AppendMenuW(pos, MF_SEPARATOR, 0, nullptr);
     AppendRadio(pos, IDM_MONITOR, L"Основной монитор", g_cfg.monitor == 0);
     AppendRadio(pos, IDM_MONITOR + 1, L"Монитор активного окна", g_cfg.monitor == 1);
@@ -193,6 +238,12 @@ void ShowMenu() {
     for (int i = 0; i < (int)(sizeof(kColors) / sizeof(*kColors)); ++i)
         AppendRadio(col, IDM_COLOR + i, kColors[i].name, g_cfg.color == kColors[i].c);
     AppendMenuW(look, MF_POPUP, (UINT_PTR)col, L"Цвет");
+    AppendMenuW(look, MF_SEPARATOR, 0, nullptr);
+    AppendRadio(look, IDM_LAYOUT, L"Столбиком", g_cfg.layout == LayoutColumn);
+    AppendRadio(look, IDM_LAYOUT + 1, L"В ряд", g_cfg.layout == LayoutRow);
+    AppendMenuW(look, MF_SEPARATOR, 0, nullptr);
+    AppendCheck(look, IDM_COLORFPS, L"Цвет FPS по уровню (зел./жёлт./красн.)", g_cfg.colorByFps);
+    AppendCheck(look, IDM_ONLYGAMES, L"Показывать только в играх", g_cfg.onlyInGames);
     AppendMenuW(menu, MF_POPUP, (UINT_PTR)look, L"Внешний вид");
 
     HMENU info = CreatePopupMenu();
@@ -246,7 +297,11 @@ void ShowMenu() {
 void OnCommand(int id) {
     auto in = [&](int base, int count) { return id >= base && id < base + count; };
     if (id == IDM_TOGGLE) ToggleHud();
-    else if (in(IDM_CORNER, 4)) { g_cfg.corner = id - IDM_CORNER; Commit(); }
+    else if (id == IDM_CORNER + 4 || id == IDM_EDIT) SetEdit(id == IDM_CORNER + 4 ? true : !g_editing);
+    else if (in(IDM_CORNER, 4)) { StopEdit(); g_cfg.corner = id - IDM_CORNER; Commit(); }
+    else if (in(IDM_LAYOUT, 2)) { g_cfg.layout = id - IDM_LAYOUT; Commit(); }
+    else if (id == IDM_COLORFPS) { g_cfg.colorByFps = !g_cfg.colorByFps; Commit(); }
+    else if (id == IDM_ONLYGAMES) { g_cfg.onlyInGames = !g_cfg.onlyInGames; Commit(); }
     else if (in(IDM_MONITOR, 2)) { g_cfg.monitor = id - IDM_MONITOR; Commit(); }
     else if (in(IDM_FONT, 8)) { g_cfg.fontSize = kFonts[id - IDM_FONT]; Commit(); }
     else if (in(IDM_OPACITY, 6)) { g_cfg.opacity = kOpacities[id - IDM_OPACITY]; Commit(); }
@@ -293,6 +348,7 @@ LRESULT CALLBACK WndProc(HWND h, UINT m, WPARAM w, LPARAM l) {
         case WM_HOTKEY:
             if (w == HOTKEY_TOGGLE) ToggleHud();
             else if (w == HOTKEY_CLEAN) CleanNow(false);
+            else if (w == HOTKEY_EDIT) SetEdit(!g_editing);
             return 0;
         case WM_DISPLAYCHANGE:
         case WM_DPICHANGED: HudApply(g_cfg); return 0;
@@ -301,6 +357,7 @@ LRESULT CALLBACK WndProc(HWND h, UINT m, WPARAM w, LPARAM l) {
             KillTimer(h, TIMER_CLEAN);
             UnregisterHotKey(h, HOTKEY_TOGGLE);
             UnregisterHotKey(h, HOTKEY_CLEAN);
+            UnregisterHotKey(h, HOTKEY_EDIT);
             Shell_NotifyIconW(NIM_DELETE, &g_nid);
             EtwStop();
             HudDestroy();
@@ -343,6 +400,7 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE, LPSTR, int) {
     AddTrayIcon();
     RegisterHotKey(g_wnd, HOTKEY_TOGGLE, MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, 'F');
     RegisterHotKey(g_wnd, HOTKEY_CLEAN, MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, 'M');
+    RegisterHotKey(g_wnd, HOTKEY_EDIT, MOD_CONTROL | MOD_ALT | MOD_NOREPEAT, 'G');
     HudApply(g_cfg);
     ApplyRuntimeState();
     SetTimer(g_wnd, TIMER_TRIM, 60000, nullptr);
