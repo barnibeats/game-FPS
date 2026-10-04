@@ -33,7 +33,7 @@ Real frame rate of any game (D3D9/10/11/12, OpenGL, Vulkan) and of the desktop, 
 
 - Sensors are opened only while their line is enabled and the HUD is visible; otherwise nothing is polled.
 - CPU load: `GetSystemTimes`. GPU on NVIDIA: NVML (temperature, load, VRAM). Other GPUs: VRAM via DXGI and load via Windows `GPU Engine` counters; GPU temperature is not available there yet.
-- **CPU temperature** is read from ACPI thermal zones, which many PCs (including most Ryzen boards) do not expose; the HUD then shows `--`. Reading the real CPU die temperature needs a kernel driver, which this project deliberately does not ship (anti-cheat friendliness).
+- **CPU temperature**: Windows exposes no CPU die temperature to ordinary programs, and most Ryzen boards publish no ACPI thermal zone. The app therefore reads it from [HWiNFO](https://www.hwinfo.com) when it is running with *Settings > Sensors > Shared Memory Support* enabled (HWiNFO uses its own signed driver, this project ships none). Without HWiNFO the HUD shows `--`. Note: the free HWiNFO edition limits shared memory to a limited time per run.
 
 ## Install and update
 

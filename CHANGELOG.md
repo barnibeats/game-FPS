@@ -16,6 +16,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning: [S
 ### Fixed
 - Broken degree sign in temperature values.
 
+### Added (sensors)
+- CPU temperature via HWiNFO shared memory when HWiNFO is running with Shared Memory Support.
+
 ### Changed
 - Standby cleaner thresholds can be set from 512 MB up to 128 GB (menu and `settings.ini`).
 

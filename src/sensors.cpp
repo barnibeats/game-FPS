@@ -70,8 +70,78 @@ struct PdhCounter {
 PdhCounter g_thermal, g_gpuEngine;
 int g_gpuEngineAge;
 
+// ---------------------------------------------------------------- HWiNFO shared memory (optional)
+// HWiNFO (running with "Shared Memory Support" enabled) publishes its sensors; this gives a real CPU
+// temperature without shipping a kernel driver of our own.
+#pragma pack(push, 1)
+struct HwiHeader {
+    DWORD signature, version, revision;
+    long long pollTime;
+    DWORD sensorOffset, sensorSize, sensorCount;
+    DWORD readingOffset, readingSize, readingCount;
+};
+struct HwiReading {
+    int type;  // 1 = temperature
+    DWORD sensorIndex, readingId;
+    char labelOrig[128], labelUser[128], unit[16];
+    double value, valueMin, valueMax, valueAvg;
+};
+#pragma pack(pop)
+constexpr DWORD kHwiSignature = 0x53695748;  // 'HWiS'
+
+HANDLE g_hwiMap;
+const BYTE* g_hwiView;
+
+void HwiClose() {
+    if (g_hwiView) UnmapViewOfFile(g_hwiView);
+    if (g_hwiMap) CloseHandle(g_hwiMap);
+    g_hwiView = nullptr;
+    g_hwiMap = nullptr;
+}
+
+int HwiScore(const char* label) {
+    std::string l(label);
+    std::transform(l.begin(), l.end(), l.begin(), [](unsigned char c) { return (char)tolower(c); });
+    if (l.find("tdie") != std::string::npos || l.find("tctl") != std::string::npos) return 4;  // AMD Ryzen
+    if (l.find("cpu package") != std::string::npos) return 4;                                   // Intel
+    if (l.find("cpu (") != std::string::npos || l == "cpu") return 3;
+    if (l.find("cpu") != std::string::npos && l.find("ccd") == std::string::npos) return 2;
+    return 0;
+}
+
+double HwinfoCpuTemp() {
+    if (!g_hwiView) {
+        g_hwiMap = OpenFileMappingA(FILE_MAP_READ, FALSE, "Global\\HWiNFO_SENS_SM2");
+        if (!g_hwiMap) return -1;  // HWiNFO not running or shared memory disabled
+        g_hwiView = (const BYTE*)MapViewOfFile(g_hwiMap, FILE_MAP_READ, 0, 0, 0);
+        if (!g_hwiView) {
+            HwiClose();
+            return -1;
+        }
+    }
+    auto* h = (const HwiHeader*)g_hwiView;
+    if (h->signature != kHwiSignature) {  // HWiNFO closed ("DEAD"): drop the mapping, retry later
+        HwiClose();
+        return -1;
+    }
+    double best = -1;
+    int bestScore = 0;
+    for (DWORD i = 0; i < h->readingCount; ++i) {
+        auto* r = (const HwiReading*)(g_hwiView + h->readingOffset + (size_t)i * h->readingSize);
+        if (r->type != 1 || r->value <= 0 || r->value > 150) continue;
+        int score = HwiScore(r->labelOrig);
+        if (score > bestScore) {
+            bestScore = score;
+            best = r->value;
+        }
+    }
+    return best;
+}
+
 // ACPI thermal zones (Kelvin). Many PCs expose none or a meaningless value; "not available" then.
 double CpuTemp() {
+    double t = HwinfoCpuTemp();
+    if (t > 0) return t;
     static std::vector<std::pair<std::wstring, double>> v;
     if (!g_thermal.Open(L"\\Thermal Zone Information(*)\\Temperature") || !g_thermal.Read(v) || v.empty()) return -1;
     double best = -1;
@@ -218,12 +288,16 @@ void SensorsPoll(const SensorWant& w, SensorData& o) {
     if (w.cpuLoad) o.cpuLoad = CpuLoad();
     else g_prevKernel = g_prevUser = 0;
     if (w.cpuTemp) o.cpuTemp = CpuTemp();
-    else g_thermal.Close();
+    else {
+        g_thermal.Close();
+        HwiClose();
+    }
     if (w.gpuLoad || w.gpuTemp || w.vram) GpuPoll(w, o);
     else GpuShutdown();
 }
 
 void SensorsShutdown() {
+    HwiClose();
     g_prevKernel = g_prevUser = 0;
     g_thermal.Close();
     g_thermal.failed = false;
