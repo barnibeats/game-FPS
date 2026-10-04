@@ -1,0 +1,39 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Check tag matches CMake version
+        shell: pwsh
+        run: |
+          $v = (Select-String -Path CMakeLists.txt -Pattern 'project\(game-fps VERSION ([0-9.]+)').Matches[0].Groups[1].Value
+          if ("v$v" -ne "${{ github.ref_name }}") { throw "Tag ${{ github.ref_name }} != CMake version v$v" }
+      - name: Build
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel
+          cmake --build build
+      - name: Package
+        shell: pwsh
+        run: |
+          $name = "game-fps-${{ github.ref_name }}-win-x64"
+          New-Item -ItemType Directory dist/$name | Out-Null
+          Copy-Item build/game-fps.exe, README.md, README.ru.md, LICENSE, CHANGELOG.md dist/$name
+          Compress-Archive dist/$name/* "dist/$name.zip"
+          (Get-FileHash "dist/$name.zip" -Algorithm SHA256).Hash.ToLower() + "  $name.zip" | Out-File "dist/$name.zip.sha256" -Encoding ascii
+      - name: Publish
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            dist/*.zip
+            dist/*.sha256
