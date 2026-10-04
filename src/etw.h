@@ -3,7 +3,7 @@
 
 struct FpsResult {
     bool valid = false;
-    bool desktop = false;  // true when no app is presenting and the DWM compositor rate is shown
+    bool desktop = false;  // true when the active window is not presenting: fps holds the display refresh rate (Hz)
     DWORD pid = 0;
     double fps = 0;
     double frameMs = 0;

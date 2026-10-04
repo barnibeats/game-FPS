@@ -8,7 +8,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning: [S
 ## [0.1.0] - 2026-10-04
 
 ### Added
-- FPS HUD (games and desktop) in a configurable screen corner, driven by an ETW Present session.
+- FPS HUD in a configurable screen corner, driven by an ETW Present session; shows display refresh rate (Hz) when the active window is not presenting.
 - Frame time, 1% low and RAM usage lines.
 - Tray icon with full settings menu, INI settings in `%APPDATA%\game-fps`.
 - Autostart via Task Scheduler (elevated, no UAC prompt).

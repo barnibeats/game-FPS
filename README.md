@@ -13,7 +13,7 @@ Real frame rate of any game (D3D9/10/11/12, OpenGL, Vulkan) and of the desktop, 
 
 - Single native C++ executable (~300 KB), no runtime, no installer, no GUI framework.
 - FPS comes from a real-time ETW session on `Microsoft-Windows-DxgKrnl` limited to the *Present* keyword — the same source PresentMon uses. No hooks, no injection, so it is safe with anti-cheat.
-- Desktop FPS is the real DWM composition rate (`DwmGetCompositionTimingInfo`).
+- If the active window is not presenting frames (idle desktop), the HUD shows the compositor refresh rate in Hz (`DwmGetCompositionTimingInfo`); any app that draws (browser, video, game) shows its real FPS.
 - HUD is repainted only when the text changes; runs at below-normal priority with EcoQoS; trims its working set. About 5 MB RAM, ~0% CPU.
 - Hide the HUD and the ETW session is stopped completely.
 

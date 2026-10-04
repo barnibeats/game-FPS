@@ -157,7 +157,7 @@ void HudUpdate(const Settings& s, const FpsResult& r, const MemStatus* mem) {
     g_cfg = s;
     std::vector<std::wstring> lines;
     wchar_t b[64];
-    if (r.valid) swprintf_s(b, r.desktop ? L"%d FPS *" : L"%d FPS", (int)(r.fps + 0.5));
+    if (r.valid) swprintf_s(b, r.desktop ? L"%d Hz" : L"%d FPS", (int)(r.fps + 0.5));
     else wcscpy_s(b, L"-- FPS");
     lines.emplace_back(b);
     if (s.showFrametime) {

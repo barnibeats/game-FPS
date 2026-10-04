@@ -100,21 +100,12 @@ DWORD WINAPI ConsumerThread(LPVOID) {
     return 0;
 }
 
-// Real composition rate of the desktop: frames DWM actually displayed per second.
-double DesktopFps() {
-    static UINT64 prevFrames;
-    static int64_t prevQpc;
+// Refresh rate the DWM compositor runs at (what the desktop effectively updates at).
+double DesktopHz() {
     DWM_TIMING_INFO ti{};
     ti.cbSize = sizeof(ti);
-    if (FAILED(DwmGetCompositionTimingInfo(nullptr, &ti))) return 0;
-    LARGE_INTEGER now;
-    QueryPerformanceCounter(&now);
-    double fps = 0;
-    if (prevQpc && ti.cFramesDisplayed >= prevFrames && now.QuadPart > prevQpc)
-        fps = (double)(ti.cFramesDisplayed - prevFrames) * (double)g_freq / (double)(now.QuadPart - prevQpc);
-    prevFrames = ti.cFramesDisplayed;
-    prevQpc = now.QuadPart;
-    return fps;
+    if (FAILED(DwmGetCompositionTimingInfo(nullptr, &ti)) || !ti.rateRefresh.uiDenominator) return 0;
+    return (double)ti.rateRefresh.uiNumerator / (double)ti.rateRefresh.uiDenominator;
 }
 
 double Low1Percent() {
@@ -223,7 +214,6 @@ void EtwStop() {
 
 void FpsPoll(DWORD fgPid, bool wantLow, FpsResult& out) {
     out = FpsResult{};
-    double desktopFps = DesktopFps();
     double fgFps = 0;
 
     if (g_running) {
@@ -260,8 +250,10 @@ void FpsPoll(DWORD fgPid, bool wantLow, FpsResult& out) {
         return;
     }
     if (g_track.exchange(0)) RingReset();
+    // Foreground window is not presenting (idle desktop): show the compositor refresh rate.
+    double hz = DesktopHz();
     out.desktop = true;
-    out.valid = desktopFps >= 0.5;
-    out.fps = desktopFps;
-    out.frameMs = desktopFps > 0 ? 1000.0 / desktopFps : 0;
+    out.valid = hz > 0;
+    out.fps = hz;
+    out.frameMs = hz > 0 ? 1000.0 / hz : 0;
 }
