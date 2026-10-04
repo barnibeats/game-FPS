@@ -6,62 +6,93 @@
 
 namespace {
 constexpr wchar_t kClass[] = L"GameFpsHud";
+const wchar_t kDeg[] = L"°C";
+
+// One HUD entry: dim label + bright value. minChars reserves width so the HUD does not jitter.
+struct Item {
+    std::wstring label, value;
+    int minChars = 0;
+    bool fps = false;  // value coloured by the user colour / FPS level
+    bool operator==(const Item& o) const { return label == o.label && value == o.value; }
+};
 
 HWND g_hwnd;
-HFONT g_font;
+HFONT g_font, g_labelFont;
 Settings g_cfg;
-std::vector<std::wstring> g_lines;
+std::vector<Item> g_items;
 SIZE g_size;
 int g_dpi = 96;
 bool g_edit;
 double g_fps = -1;  // FPS of a presenting app, -1 on the desktop
 
+const COLORREF kBg = RGB(14, 16, 20);
+const COLORREF kLabel = RGB(140, 148, 160);
+const COLORREF kValue = RGB(235, 238, 242);
+const COLORREF kDivider = RGB(60, 66, 76);
+
 int Scale(int v) { return MulDiv(v, g_dpi, 96); }
 bool Row() { return g_cfg.layout == LayoutRow; }
 
-void MakeFont() {
+void MakeFonts() {
     if (g_font) DeleteObject(g_font);
+    if (g_labelFont) DeleteObject(g_labelFont);
     g_font = CreateFontW(-Scale(g_cfg.fontSize), 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET,
                          OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, ANTIALIASED_QUALITY, FIXED_PITCH | FF_MODERN,
                          L"Consolas");
+    g_labelFont = CreateFontW(-std::max(8, Scale(g_cfg.fontSize) * 62 / 100), 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
+                              DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, ANTIALIASED_QUALITY,
+                              VARIABLE_PITCH | FF_SWISS, L"Segoe UI");
 }
 
-int TextWidth(HDC dc, const std::wstring& s) {
+int TextWidth(HDC dc, HFONT f, const std::wstring& s) {
+    HGDIOBJ old = SelectObject(dc, f);
     SIZE z{};
     GetTextExtentPoint32W(dc, s.c_str(), (int)s.size(), &z);
+    SelectObject(dc, old);
     return z.cx;
 }
 
-// Width of one item; the first (FPS) item never gets narrower than a 4-digit value so the HUD does not jitter.
-int ItemWidth(HDC dc, size_t i) {
-    int w = TextWidth(dc, g_lines[i]);
-    if (i == 0) w = std::max(w, TextWidth(dc, L"0000 FPS"));
-    return w;
-}
+struct Geometry {
+    int lineH = 0, ascent = 0, labelW = 0, valueW = 0;  // column mode widths
+    std::vector<int> itemLabelW, itemValueW;
+};
 
-SIZE Measure(HDC dc, int* lineH) {
+Geometry Measure(HDC dc) {
+    Geometry g;
     HGDIOBJ old = SelectObject(dc, g_font);
     TEXTMETRICW tm{};
     GetTextMetricsW(dc, &tm);
-    *lineH = tm.tmHeight;
-    int pad = Scale(8), gap = Scale(18);
-    SIZE out{};
-    if (g_lines.empty()) g_lines.push_back(L"-- FPS");
+    SelectObject(dc, old);
+    g.lineH = tm.tmHeight;
+    g.ascent = tm.tmAscent;
+    int charW = TextWidth(dc, g_font, L"0");
+    for (auto& it : g_items) {
+        int lw = TextWidth(dc, g_labelFont, it.label);
+        int vw = std::max(TextWidth(dc, g_font, it.value), charW * it.minChars);
+        g.itemLabelW.push_back(lw);
+        g.itemValueW.push_back(vw);
+        g.labelW = std::max(g.labelW, lw);
+        g.valueW = std::max(g.valueW, vw);
+    }
+    return g;
+}
+
+SIZE ContentSize(const Geometry& g) {
+    int pad = Scale(10), labelGap = Scale(7), itemGap = Scale(12);
+    SIZE s{};
+    size_t n = g_items.size();
     if (Row()) {
         int w = 0;
-        for (size_t i = 0; i < g_lines.size(); ++i) w += ItemWidth(dc, i) + (i ? gap : 0);
-        out.cx = w;
-        out.cy = tm.tmHeight;
+        for (size_t i = 0; i < n; ++i) w += g.itemLabelW[i] + labelGap + g.itemValueW[i] + (i ? itemGap * 2 + 1 : 0);
+        s.cx = w;
+        s.cy = g.lineH;
     } else {
-        int w = 0;
-        for (size_t i = 0; i < g_lines.size(); ++i) w = std::max(w, ItemWidth(dc, i));
-        out.cx = w;
-        out.cy = tm.tmHeight * (LONG)g_lines.size();
+        s.cx = g.labelW + Scale(14) + g.valueW;
+        s.cy = g.lineH * (LONG)n;
     }
-    SelectObject(dc, old);
-    out.cx += pad * 2;
-    out.cy += pad * 2;
-    return out;
+    s.cx += pad * 2;
+    s.cy += pad * 2;
+    return s;
 }
 
 void Place() {
@@ -98,8 +129,7 @@ void Place() {
 
 void Relayout() {
     HDC dc = GetDC(g_hwnd);
-    int lh;
-    SIZE s = Measure(dc, &lh);
+    SIZE s = ContentSize(Measure(dc));
     ReleaseDC(g_hwnd, dc);
     bool changed = s.cx != g_size.cx || s.cy != g_size.cy;
     g_size = s;
@@ -117,9 +147,16 @@ COLORREF FpsColor() {
     return RGB(255, 70, 70);
 }
 
+void Text(HDC dc, HFONT f, COLORREF c, UINT align, int x, int baseline, const std::wstring& s) {
+    SelectObject(dc, f);
+    SetTextColor(dc, c);
+    SetTextAlign(dc, align | TA_BASELINE);
+    TextOutW(dc, x, baseline, s.c_str(), (int)s.size());
+}
+
 void Paint(HDC dc) {
     RECT rc{0, 0, g_size.cx, g_size.cy};
-    HBRUSH bg = CreateSolidBrush(RGB(14, 16, 20));
+    HBRUSH bg = CreateSolidBrush(kBg);
     FillRect(dc, &rc, bg);
     DeleteObject(bg);
     if (g_edit) {  // visible frame while the HUD can be dragged
@@ -131,23 +168,34 @@ void Paint(HDC dc) {
         DeleteObject(fr);
     }
     SetBkMode(dc, TRANSPARENT);
-    HGDIOBJ old = SelectObject(dc, g_font);
-    TEXTMETRICW tm{};
-    GetTextMetricsW(dc, &tm);
-    int pad = Scale(8), gap = Scale(18);
-    bool right = !Row() && (g_cfg.corner == CornerTopRight || g_cfg.corner == CornerBottomRight);
+    Geometry g = Measure(dc);
+    int pad = Scale(10), labelGap = Scale(7), itemGap = Scale(12);
     int x = pad, y = pad;
-    for (size_t i = 0; i < g_lines.size(); ++i) {
-        int w = Row() ? ItemWidth(dc, i) : g_size.cx - pad * 2;
-        RECT lr{x, y, x + w, y + tm.tmHeight};
-        // First item (FPS) in the user colour, secondary items dimmed.
-        SetTextColor(dc, i == 0 ? FpsColor() : RGB(200, 205, 210));
-        DrawTextW(dc, g_lines[i].c_str(), -1, &lr,
-                  (right ? DT_RIGHT : DT_LEFT) | DT_NOPREFIX | DT_SINGLELINE | DT_NOCLIP);
-        if (Row()) x += w + gap;
-        else y += tm.tmHeight;
+    HPEN pen = CreatePen(PS_SOLID, 1, kDivider);
+    HGDIOBJ oldPen = SelectObject(dc, pen);
+    for (size_t i = 0; i < g_items.size(); ++i) {
+        const Item& it = g_items[i];
+        COLORREF vc = it.fps ? FpsColor() : kValue;
+        int base = y + g.ascent;
+        if (Row()) {
+            if (i) {  // thin divider between items
+                x += itemGap;
+                MoveToEx(dc, x, y + g.lineH / 6, nullptr);
+                LineTo(dc, x, y + g.lineH - g.lineH / 6);
+                x += 1 + itemGap;
+            }
+            Text(dc, g_labelFont, kLabel, TA_LEFT, x, base, it.label);
+            x += g.itemLabelW[i] + labelGap;
+            Text(dc, g_font, vc, TA_LEFT, x, base, it.value);
+            x += g.itemValueW[i];
+        } else {  // label column on the left, values right-aligned
+            Text(dc, g_labelFont, kLabel, TA_LEFT, pad, base, it.label);
+            Text(dc, g_font, vc, TA_RIGHT, g_size.cx - pad, base, it.value);
+            y += g.lineH;
+        }
     }
-    SelectObject(dc, old);
+    SelectObject(dc, oldPen);
+    DeleteObject(pen);
 }
 
 LRESULT CALLBACK HudProc(HWND h, UINT m, WPARAM w, LPARAM l) {
@@ -159,6 +207,9 @@ LRESULT CALLBACK HudProc(HWND h, UINT m, WPARAM w, LPARAM l) {
             EndPaint(h, &ps);
             return 0;
         }
+        case WM_PRINTCLIENT:  // lets screenshot tools (PrintWindow) capture the layered window
+            Paint((HDC)w);
+            return 0;
         case WM_ERASEBKGND: return 1;
         case WM_NCHITTEST: return g_edit ? HTCAPTION : HTTRANSPARENT;
         case WM_MOUSEACTIVATE: return MA_NOACTIVATE;
@@ -171,6 +222,15 @@ LRESULT CALLBACK HudProc(HWND h, UINT m, WPARAM w, LPARAM l) {
     }
     return DefWindowProcW(h, m, w, l);
 }
+
+std::wstring Fmt(const wchar_t* f, double a) {
+    wchar_t b[48];
+    swprintf_s(b, f, a);
+    return b;
+}
+
+std::wstring Pct(double v) { return v >= 0 ? Fmt(L"%.0f%%", v) : L"--%"; }
+std::wstring Temp(double v) { return v >= 0 ? Fmt(L"%.0f", v) + kDeg : std::wstring(L"--") + kDeg; }
 }  // namespace
 
 bool HudCreate(HINSTANCE inst) {
@@ -194,14 +254,16 @@ void HudDestroy() {
     if (g_hwnd) DestroyWindow(g_hwnd);
     g_hwnd = nullptr;
     if (g_font) DeleteObject(g_font);
-    g_font = nullptr;
+    if (g_labelFont) DeleteObject(g_labelFont);
+    g_font = g_labelFont = nullptr;
 }
 
 void HudApply(const Settings& s) {
     g_cfg = s;
     if (!g_hwnd) return;
-    MakeFont();
+    MakeFonts();
     SetLayeredWindowAttributes(g_hwnd, 0, (BYTE)(255 * s.opacity / 100), LWA_ALPHA);
+    if (g_items.empty()) g_items.push_back({L"FPS", L"--", 3, true});
     g_size = SIZE{};  // force region rebuild
     Relayout();
     InvalidateRect(g_hwnd, nullptr, FALSE);
@@ -240,49 +302,37 @@ void HudUpdate(const Settings& s, const FpsResult& r, const MemStatus* mem, cons
     if (!g_hwnd) return;
     g_cfg = s;
     g_fps = (r.valid && !r.desktop) ? r.fps : -1;
-    std::vector<std::wstring> lines;
-    wchar_t b[64];
-    if (r.valid) swprintf_s(b, r.desktop ? L"%d Hz" : L"%d FPS", (int)(r.fps + 0.5));
-    else wcscpy_s(b, L"-- FPS");
-    lines.emplace_back(b);
-    if (s.showFrametime) {
-        if (r.valid) swprintf_s(b, L"%.1f ms", r.frameMs);
-        else wcscpy_s(b, L"-- ms");
-        lines.emplace_back(b);
-    }
-    if (s.showLow) {
-        if (r.low1 > 0) swprintf_s(b, L"1%% low %d", (int)(r.low1 + 0.5));
-        else wcscpy_s(b, L"1% low --");
-        lines.emplace_back(b);
-    }
-    if (s.showRam && mem) {
-        swprintf_s(b, L"RAM %d%% %.1fG", mem->loadPercent, (double)(mem->totalMB - mem->availMB) / 1024.0);
-        lines.emplace_back(b);
-    }
+
+    std::vector<Item> items;
+    // FPS while an app presents, display refresh rate (Hz) on the idle desktop.
+    items.push_back({r.desktop ? L"HZ" : L"FPS", r.valid ? Fmt(L"%.0f", r.fps) : L"--", 3, true});
+    if (s.showFrametime) items.push_back({L"FRAME", r.valid ? Fmt(L"%.1f ms", r.frameMs) : L"-- ms", 7, false});
+    if (s.showLow) items.push_back({L"1% LOW", r.low1 > 0 ? Fmt(L"%.0f", r.low1) : L"--", 3, false});
+    if (s.showRam && mem)
+        items.push_back({L"RAM",
+                         Pct(mem->loadPercent) + L"  " + Fmt(L"%.1f GB", (double)(mem->totalMB - mem->availMB) / 1024.0),
+                         13, false});
     if (sd) {
-        auto temp = [&](double t, wchar_t* o) { if (t >= 0) swprintf_s(o, 16, L"%d00B0C", (int)(t + 0.5)); else wcscpy_s(o, 16, L"--00B0C"); };
-        wchar_t t[16], l[16];
         if (s.showCpuLoad || s.showCpuTemp) {
-            std::wstring x = L"CPU";
-            if (s.showCpuLoad) { if (sd->cpuLoad >= 0) swprintf_s(l, L" %d%%", (int)(sd->cpuLoad + 0.5)); else wcscpy_s(l, L" --%"); x += l; }
-            if (s.showCpuTemp) { temp(sd->cpuTemp, t); x += L" "; x += t; }
-            lines.push_back(x);
+            std::wstring v = s.showCpuLoad ? Pct(sd->cpuLoad) : L"";
+            if (s.showCpuTemp) v += (v.empty() ? L"" : L"  ") + Temp(sd->cpuTemp);
+            items.push_back({L"CPU", v, s.showCpuLoad && s.showCpuTemp ? 9 : 4, false});
         }
         if (s.showGpuLoad || s.showGpuTemp) {
-            std::wstring x = L"GPU";
-            if (s.showGpuLoad) { if (sd->gpuLoad >= 0) swprintf_s(l, L" %d%%", (int)(sd->gpuLoad + 0.5)); else wcscpy_s(l, L" --%"); x += l; }
-            if (s.showGpuTemp) { temp(sd->gpuTemp, t); x += L" "; x += t; }
-            lines.push_back(x);
+            std::wstring v = s.showGpuLoad ? Pct(sd->gpuLoad) : L"";
+            if (s.showGpuTemp) v += (v.empty() ? L"" : L"  ") + Temp(sd->gpuTemp);
+            items.push_back({L"GPU", v, s.showGpuLoad && s.showGpuTemp ? 9 : 4, false});
         }
         if (s.showVram) {
-            if (sd->vramUsedMB >= 0) swprintf_s(b, L"VRAM %.1f/%.0fG", sd->vramUsedMB / 1024.0, sd->vramTotalMB / 1024.0);
-            else wcscpy_s(b, L"VRAM --");
-            lines.emplace_back(b);
+            std::wstring v = sd->vramUsedMB >= 0
+                                 ? Fmt(L"%.1f", sd->vramUsedMB / 1024.0) + Fmt(L"/%.0f GB", sd->vramTotalMB / 1024.0)
+                                 : L"--";
+            items.push_back({L"VRAM", v, 11, false});
         }
     }
-    bool changed = lines != g_lines;
-    if (changed) {
-        g_lines = std::move(lines);
+
+    if (items != g_items) {
+        g_items = std::move(items);
         Relayout();
     }
     // "Only in games": hide while the active window is not presenting frames.

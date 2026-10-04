@@ -11,6 +11,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning: [S
 - CPU load/temperature, GPU load/temperature and VRAM usage lines (NVML on NVIDIA, DXGI/PDH elsewhere).
 
 ### Changed
+- HUD items now have a dim label and a bright value, separated by dividers (row) or aligned in a table (column).
+
+### Fixed
+- Broken degree sign in temperature values.
+
+### Changed
 - Standby cleaner thresholds can be set from 512 MB up to 128 GB (menu and `settings.ini`).
 
 ## [0.1.0] - 2026-10-04
