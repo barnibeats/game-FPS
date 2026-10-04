@@ -8,6 +8,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versioning: [S
 ### Added
 - Free HUD placement by dragging (edit mode, `Ctrl+Alt+G`), position saved in `settings.ini`.
 - Row layout for HUD items, FPS colour by level, *only in games* option.
+- CPU load/temperature, GPU load/temperature and VRAM usage lines (NVML on NVIDIA, DXGI/PDH elsewhere).
 
 ### Changed
 - Standby cleaner thresholds can be set from 512 MB up to 128 GB (menu and `settings.ini`).

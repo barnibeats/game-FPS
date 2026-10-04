@@ -17,6 +17,7 @@ add_executable(game-fps WIN32
   src/settings.cpp
   src/autostart.cpp
   src/memory.cpp
+  src/sensors.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/app.rc
 )
 
@@ -26,7 +27,7 @@ target_compile_definitions(game-fps PRIVATE
   APP_VERSION="${PROJECT_VERSION}"
 )
 target_include_directories(game-fps PRIVATE src)
-target_link_libraries(game-fps PRIVATE advapi32 user32 gdi32 shell32 dwmapi ole32)
+target_link_libraries(game-fps PRIVATE advapi32 user32 gdi32 shell32 dwmapi ole32 dxgi pdh)
 
 if(MSVC)
   # Static CRT (no VC++ redistributable needed), our own manifest is embedded via the .rc

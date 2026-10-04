@@ -236,7 +236,7 @@ bool HudGetPos(int* x, int* y) {
     return true;
 }
 
-void HudUpdate(const Settings& s, const FpsResult& r, const MemStatus* mem) {
+void HudUpdate(const Settings& s, const FpsResult& r, const MemStatus* mem, const SensorData* sd) {
     if (!g_hwnd) return;
     g_cfg = s;
     g_fps = (r.valid && !r.desktop) ? r.fps : -1;
@@ -258,6 +258,27 @@ void HudUpdate(const Settings& s, const FpsResult& r, const MemStatus* mem) {
     if (s.showRam && mem) {
         swprintf_s(b, L"RAM %d%% %.1fG", mem->loadPercent, (double)(mem->totalMB - mem->availMB) / 1024.0);
         lines.emplace_back(b);
+    }
+    if (sd) {
+        auto temp = [&](double t, wchar_t* o) { if (t >= 0) swprintf_s(o, 16, L"%d00B0C", (int)(t + 0.5)); else wcscpy_s(o, 16, L"--00B0C"); };
+        wchar_t t[16], l[16];
+        if (s.showCpuLoad || s.showCpuTemp) {
+            std::wstring x = L"CPU";
+            if (s.showCpuLoad) { if (sd->cpuLoad >= 0) swprintf_s(l, L" %d%%", (int)(sd->cpuLoad + 0.5)); else wcscpy_s(l, L" --%"); x += l; }
+            if (s.showCpuTemp) { temp(sd->cpuTemp, t); x += L" "; x += t; }
+            lines.push_back(x);
+        }
+        if (s.showGpuLoad || s.showGpuTemp) {
+            std::wstring x = L"GPU";
+            if (s.showGpuLoad) { if (sd->gpuLoad >= 0) swprintf_s(l, L" %d%%", (int)(sd->gpuLoad + 0.5)); else wcscpy_s(l, L" --%"); x += l; }
+            if (s.showGpuTemp) { temp(sd->gpuTemp, t); x += L" "; x += t; }
+            lines.push_back(x);
+        }
+        if (s.showVram) {
+            if (sd->vramUsedMB >= 0) swprintf_s(b, L"VRAM %.1f/%.0fG", sd->vramUsedMB / 1024.0, sd->vramTotalMB / 1024.0);
+            else wcscpy_s(b, L"VRAM --");
+            lines.emplace_back(b);
+        }
     }
     bool changed = lines != g_lines;
     if (changed) {

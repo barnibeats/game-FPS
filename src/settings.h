@@ -20,6 +20,9 @@ struct Settings {
     bool showFrametime = false;
     bool showLow = false;
     bool showRam = false;
+    bool showCpuLoad = false, showCpuTemp = false;
+    bool showGpuLoad = false, showGpuTemp = false;
+    bool showVram = false;
     // Standby list cleaner (ISLC-style)
     bool autoClean = false;
     int standbyMB = 1024;     // clean when standby list >= this ...

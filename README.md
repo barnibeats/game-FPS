@@ -22,12 +22,18 @@ Real frame rate of any game (D3D9/10/11/12, OpenGL, Vulkan) and of the desktop, 
 - HUD in any corner, on the primary monitor or the monitor of the active window, or **free placement**: drag it with the mouse (`Ctrl+Alt+G` to start/finish moving).
 - Layout: stacked in a column or **in a row**.
 - Optional FPS colour by level (green / yellow / red) and *show only in games* (hidden on the idle desktop).
-- Optional frame time, 1% low FPS and RAM usage lines.
+- Optional lines: frame time, 1% low FPS, RAM, **CPU load, CPU temperature, GPU load, GPU temperature, VRAM usage**.
 - Size, colour, opacity, update interval (1 s / 2 s).
 - Lives in the system tray, left click toggles the HUD, right click opens the menu.
 - Autostart with Windows (Task Scheduler logon task, no UAC prompt at boot).
 - **Memory cleaner** (Intelligent Standby List Cleaner style): purge the standby list manually or automatically when `standby >= N MB` and `free < M MB`.
 - Hotkeys: `Ctrl+Alt+F` toggle HUD, `Ctrl+Alt+G` move HUD, `Ctrl+Alt+M` purge standby list.
+
+### Sensors notes
+
+- Sensors are opened only while their line is enabled and the HUD is visible; otherwise nothing is polled.
+- CPU load: `GetSystemTimes`. GPU on NVIDIA: NVML (temperature, load, VRAM). Other GPUs: VRAM via DXGI and load via Windows `GPU Engine` counters; GPU temperature is not available there yet.
+- **CPU temperature** is read from ACPI thermal zones, which many PCs (including most Ryzen boards) do not expose; the HUD then shows `--`. Reading the real CPU die temperature needs a kernel driver, which this project deliberately does not ship (anti-cheat friendliness).
 
 ## Install and update
 

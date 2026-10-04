@@ -49,6 +49,11 @@ void SettingsLoad(Settings& s) {
     s.showFrametime = GetInt(L"hud", L"show_frametime", 0) != 0;
     s.showLow = GetInt(L"hud", L"show_1pct_low", 0) != 0;
     s.showRam = GetInt(L"hud", L"show_ram", 0) != 0;
+    s.showCpuLoad = GetInt(L"hud", L"show_cpu_load", 0) != 0;
+    s.showCpuTemp = GetInt(L"hud", L"show_cpu_temp", 0) != 0;
+    s.showGpuLoad = GetInt(L"hud", L"show_gpu_load", 0) != 0;
+    s.showGpuTemp = GetInt(L"hud", L"show_gpu_temp", 0) != 0;
+    s.showVram = GetInt(L"hud", L"show_vram", 0) != 0;
     s.autoClean = GetInt(L"memory", L"auto_clean", 0) != 0;
     s.standbyMB = std::clamp(GetInt(L"memory", L"standby_mb", s.standbyMB), 128, 131072);
     s.freeMB = std::clamp(GetInt(L"memory", L"free_mb", s.freeMB), 128, 131072);
@@ -72,6 +77,11 @@ void SettingsSave(const Settings& s) {
     PutInt(L"hud", L"show_frametime", s.showFrametime);
     PutInt(L"hud", L"show_1pct_low", s.showLow);
     PutInt(L"hud", L"show_ram", s.showRam);
+    PutInt(L"hud", L"show_cpu_load", s.showCpuLoad);
+    PutInt(L"hud", L"show_cpu_temp", s.showCpuTemp);
+    PutInt(L"hud", L"show_gpu_load", s.showGpuLoad);
+    PutInt(L"hud", L"show_gpu_temp", s.showGpuTemp);
+    PutInt(L"hud", L"show_vram", s.showVram);
     PutInt(L"memory", L"auto_clean", s.autoClean);
     PutInt(L"memory", L"standby_mb", s.standbyMB);
     PutInt(L"memory", L"free_mb", s.freeMB);

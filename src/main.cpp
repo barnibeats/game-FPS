@@ -7,6 +7,7 @@
 #include "etw.h"
 #include "hud.h"
 #include "memory.h"
+#include "sensors.h"
 #include "settings.h"
 
 #define STR2(x) L##x
@@ -36,6 +37,7 @@ enum Cmd {
     IDM_COLORFPS = 204,
     IDM_EDIT = 205,
     IDM_LAYOUT = 270,    // +0..1
+    IDM_SENSOR = 280,    // +0..4: cpu load, cpu temp, gpu load, gpu temp, vram
     IDM_CLEAN_NOW = 210,
     IDM_CLEAN_FULL = 211,
     IDM_AUTOCLEAN = 212,
@@ -65,6 +67,7 @@ NOTIFYICONDATAW g_nid;
 UINT g_taskbarCreated;
 bool g_etwFailed;
 bool g_editing;  // HUD is draggable (free placement)
+bool g_sensorsOpen;
 
 void Balloon(const wchar_t* title, const wchar_t* text) {
     NOTIFYICONDATAW n = g_nid;
@@ -102,7 +105,16 @@ void Tick() {
     MemStatus mem;
     bool needMem = g_cfg.showRam;
     if (needMem) MemQuery(mem);
-    HudUpdate(g_cfg, r, needMem ? &mem : nullptr);
+    SensorWant want{g_cfg.showCpuLoad, g_cfg.showCpuTemp, g_cfg.showGpuLoad, g_cfg.showGpuTemp, g_cfg.showVram};
+    SensorData sd;
+    if (want.any()) {
+        SensorsPoll(want, sd);
+        g_sensorsOpen = true;
+    } else if (g_sensorsOpen) {
+        SensorsShutdown();
+        g_sensorsOpen = false;
+    }
+    HudUpdate(g_cfg, r, needMem ? &mem : nullptr, want.any() ? &sd : nullptr);
 }
 
 // Start/stop everything that costs CPU depending on HUD visibility.
@@ -119,6 +131,8 @@ void ApplyRuntimeState() {
     } else {
         HudShow(false);
         EtwStop();
+        SensorsShutdown();
+        g_sensorsOpen = false;
     }
     KillTimer(g_wnd, TIMER_CLEAN);
     if (g_cfg.autoClean) SetTimer(g_wnd, TIMER_CLEAN, 2000, nullptr);
@@ -251,6 +265,12 @@ void ShowMenu() {
     AppendCheck(info, IDM_LOW, L"1% low FPS", g_cfg.showLow);
     AppendCheck(info, IDM_RAM, L"Загрузка RAM", g_cfg.showRam);
     AppendMenuW(info, MF_SEPARATOR, 0, nullptr);
+    AppendCheck(info, IDM_SENSOR, L"CPU: загрузка", g_cfg.showCpuLoad);
+    AppendCheck(info, IDM_SENSOR + 1, L"CPU: температура", g_cfg.showCpuTemp);
+    AppendCheck(info, IDM_SENSOR + 2, L"GPU: загрузка", g_cfg.showGpuLoad);
+    AppendCheck(info, IDM_SENSOR + 3, L"GPU: температура", g_cfg.showGpuTemp);
+    AppendCheck(info, IDM_SENSOR + 4, L"VRAM: занято", g_cfg.showVram);
+    AppendMenuW(info, MF_SEPARATOR, 0, nullptr);
     AppendRadio(info, IDM_INTERVAL, L"Обновление: 1 с", g_cfg.intervalMs == 1000);
     AppendRadio(info, IDM_INTERVAL + 1, L"Обновление: 2 с (экономнее)", g_cfg.intervalMs == 2000);
     AppendMenuW(menu, MF_POPUP, (UINT_PTR)info, L"Метрики");
@@ -310,6 +330,11 @@ void OnCommand(int id) {
     else if (id == IDM_FRAMETIME) { g_cfg.showFrametime = !g_cfg.showFrametime; Commit(); }
     else if (id == IDM_LOW) { g_cfg.showLow = !g_cfg.showLow; Commit(); }
     else if (id == IDM_RAM) { g_cfg.showRam = !g_cfg.showRam; Commit(); }
+    else if (in(IDM_SENSOR, 5)) {
+        bool* f[] = {&g_cfg.showCpuLoad, &g_cfg.showCpuTemp, &g_cfg.showGpuLoad, &g_cfg.showGpuTemp, &g_cfg.showVram};
+        *f[id - IDM_SENSOR] = !*f[id - IDM_SENSOR];
+        Commit();
+    }
     else if (id == IDM_CLEAN_NOW) CleanNow(false);
     else if (id == IDM_CLEAN_FULL) CleanNow(true);
     else if (id == IDM_AUTOCLEAN) { g_cfg.autoClean = !g_cfg.autoClean; Commit(false); }
